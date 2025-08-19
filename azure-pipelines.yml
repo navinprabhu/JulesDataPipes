@@ -1,0 +1,62 @@
+# Azure Data Platform - Main Pipeline
+# Orchestrates all component deployments in correct order
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - docs/
+      - README.md
+
+variables:
+  - group: dataplatform-shared
+  - name: solution
+    value: 'src/api/DataPlatform.sln'
+
+stages:
+  # Infrastructure Deployment
+  - stage: Infrastructure
+    displayName: 'Deploy Infrastructure'
+    jobs:
+      - template: .azure-devops/templates/infrastructure.yml
+        parameters:
+          environment: $(Environment)
+          serviceConnection: $(ServiceConnection)
+
+  # Databricks ETL Deployment  
+  - stage: Databricks
+    displayName: 'Deploy Databricks Assets'
+    dependsOn: Infrastructure
+    jobs:
+      - template: .azure-devops/templates/databricks.yml
+        parameters:
+          environment: $(Environment)
+          databricksUrl: $(DatabricksUrl)
+
+  # API Deployment
+  - stage: API
+    displayName: 'Deploy .NET API'
+    dependsOn: 
+      - Infrastructure
+      - Databricks
+    jobs:
+      - template: .azure-devops/templates/dotnet-api.yml
+        parameters:
+          environment: $(Environment)
+          appServiceName: $(AppServiceName)
+
+  # Power BI Deployment
+  - stage: PowerBI
+    displayName: 'Deploy Power BI Assets'
+    dependsOn:
+      - Infrastructure
+      - Databricks
+      - API
+    jobs:
+      - template: .azure-devops/templates/powerbi.yml
+        parameters:
+          environment: $(Environment)
+          workspaceId: $(PowerBIWorkspaceId)
